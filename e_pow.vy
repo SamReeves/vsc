@@ -6,10 +6,12 @@
 @input n, a decimal power of e in (0.0, 10.0]
 @output e^n, the value of e^n
 @author Magic Numbers
+@license MIT
 """
 
 owner: private(address)
-tab: constant(decimal[10][10]) = [[1.0, 2.7182818285, 7.3890560989, 20.0855369232, 54.5981500331, 148.4131591026, 403.4287934927, 1096.6331584285, 2980.9579870417, 8103.0839275754],
+tab: constant(decimal[10][10]) = \
+    [[1.0, 2.7182818285, 7.3890560989, 20.0855369232, 54.5981500331, 148.4131591026, 403.4287934927, 1096.6331584285, 2980.9579870417, 8103.0839275754],
     [1.0, 1.1051709181, 1.2214027582, 1.3498588076, 1.4918246976, 1.6487212707, 1.8221188004, 2.0137527075, 2.2255409285, 2.4596031112],
     [1.0, 1.0100501671, 1.02020134, 1.030454534, 1.0408107742, 1.0512710964, 1.0618365465, 1.0725081813, 1.0832870677, 1.0941742837],
     [1.0, 1.0010005002, 1.0020020013, 1.0030045045, 1.0040080107, 1.0050125209, 1.0060180361, 1.0070245573, 1.0080320855, 1.0090406218],
@@ -25,40 +27,37 @@ tab: constant(decimal[10][10]) = [[1.0, 2.7182818285, 7.3890560989, 20.085536923
 def __init__():
     self.owner = msg.sender
 
-@internal
-@pure
-def table(n: decimal) -> decimal:
-    """
-    @notice This function refers to the table of powers of e, and returns the value of e^n.
-    """
-    r: int256 = floor(n)
-    f: decimal = 0.0
-    a: decimal = tab[0][r]
-    b: decimal = 1.0
-    for i in range(10):
-        f: int256 = floor(n * 10.0 * convert(10 ** i, decimal) - convert(r * 10 ** i+1, decimal))
-        b = b * tab[i][f]
-    return a * b
-
 @external
-@payable
-def power():
+def exp():
     """
-    @notice This is the callable function. It calls the table function, and returns the value of e^n.
+    @notice This is the callable function. It calls pure multiply_exponents function,
+    and returns the value of e^n.
     """
-    assert msg.value > tx.gasprice * 10, "Please pay 10x gas fee to use this function."
     assert msg.data >= 0.0, "Negative powers are not supported."
-    assert msg.data < 10.0, "Powers greater than or equal to 10 are not supported."
+    assert msg.data <= 10.0, "Powers greater than or equal to 10 are not supported."
+    send(msg.sender, multiply_exponents(msg.data))
 
-    send(msg.sender, table(msg.data))
+@pure
+def multiply_exponents(n: decimal) -> decimal:
+    """
+    @notice This function refers to the table of powers of e, and returns the value of
+    e^n by multiplying known exponent values. This is limited to 10 decimal places.
+    """
+    # split n into a whole part and a decimal part
+    r: int256 = floor(n)
+    f: decimal = n - convert(r, decimal)
 
-@external
-def withdraw():
-    """
-    @notice This function allows the owner to withdraw funds from the contract.
-    """
-    assert msg.sender == self.owner, "Only the owner can withdraw funds."
-    send(self.owner, self.balance)
+    # create a list of every digit in f
+    digits: int128[10]
+    for i in range(9):
+        digits[i] = floor(f * convert((10 ** i), decimal))
+    
+    # calculate the two parts and multiply them together
+    whole: decimal = tab(0, r)
+    fraction: decimal = 1.0
+    for i in range(9):
+        fraction *= tab(i+1, digits[i])
+    return whole * fraction
 
 @external
 def unalive():
